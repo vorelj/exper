@@ -19,6 +19,10 @@ import org.apache.wss4j.dom.message.WSSecHeader;
 import org.apache.wss4j.dom.message.WSSecSignature;
 import org.w3c.dom.Document;
 
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
+
 /**
  * 
  * @author jv
@@ -31,25 +35,40 @@ import org.w3c.dom.Document;
  * for example: SignSOAP 5e1ec3ba-0ca2-4698-95c9-a36b33892590 secure ../cert.pfx input.xml output.xml
  */
 public class SignSOAP {
-	private static String alias;
-	private static String password;
-	private static String certFile;
-	private static String sourceFile;
-	private static String targetFile;
+	private static class CmdLineArgs {
+		@Parameter(names = {"-a"}, required = true, description = "Alias name of certificate. Try 'keytool -list -v -keystore cert.pfx -storetype pkcs12' to display.")
+		private String alias;
+		@Parameter(names = {"-p"}, required = true, description = "Password to access certificate.")
+		private String password;
+		@Parameter(names = {"-c"}, required = true, description = "Certificate (PFX format, pkcs12 type) file path.")
+		private String certFile;
+		@Parameter(names = {"-s"}, required = true, description = "Source XML file path.")
+		private String sourceFile;
+		@Parameter(names = {"-t"}, required = true, description = "Target (signed) XML file path.")
+		private String targetFile;
+	}
+	
+	private static CmdLineArgs cmdLineArgs;
 
 	public static void main(String[] args) throws Exception {
-		processArgs(args);
-		Document doc = load(sourceFile);
+		cmdLineArgs = processArgs(args);
+		Document doc = load(cmdLineArgs.sourceFile);
 		Document signedDoc = sign(doc);
-		write(signedDoc, targetFile);
+		write(signedDoc, cmdLineArgs.targetFile);
 	}
 
-	private static void processArgs(String[] args) {
-		alias = args[0];
-		password = args[1];
-		certFile = args[2];
-		sourceFile = args[3];
-		targetFile = args[4];
+	private static CmdLineArgs processArgs(String[] args) {
+		CmdLineArgs parsed = new CmdLineArgs();
+		JCommander commander = new JCommander(parsed);
+		try {
+			commander.parse(args);
+		} catch (ParameterException e) {
+			System.err.println(e.getMessage());
+			commander.setProgramName("SignSOAP");
+			commander.usage();
+			System.exit(-1);
+		}
+		return parsed;
 	}
 
 	private static Document sign(Document doc) throws Exception {
@@ -57,7 +76,7 @@ public class SignSOAP {
 		Crypto crypto = CryptoFactory.getInstance(getProperties());
 
 		WSSecSignature builder = new WSSecSignature();
-		builder.setUserInfo(alias, password);
+		builder.setUserInfo(cmdLineArgs.alias, cmdLineArgs.password);
 		builder.setKeyIdentifierType(WSConstants.ISSUER_SERIAL);
 		builder.setSignatureAlgorithm("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256");
 		builder.setDigestAlgo("http://www.w3.org/2001/04/xmlenc#sha256");
@@ -72,9 +91,9 @@ public class SignSOAP {
 		Properties props = new Properties();
 		props.setProperty("org.apache.wss4j.crypto.provider", "org.apache.wss4j.common.crypto.Merlin");
 		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.type", "pkcs12");
-		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.password", password);
-		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.alias", alias);
-		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.file", certFile);
+		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.password", cmdLineArgs.password);
+		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.alias", cmdLineArgs.alias);
+		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.file", cmdLineArgs.certFile);
 		return props;
 	}
 
