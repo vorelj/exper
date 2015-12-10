@@ -31,35 +31,36 @@ import com.beust.jcommander.ParameterException;
  * Certificate to sign can be created in windows - run certmgr.msc and export as pfx with private key
  * Certificate alias is necessary to be set. It can be displayed by keytool -list -v -keystore cert.pfx -storetype pkcs12
  *
- * run: SignSOAP ALIAS PASSWORD CERT_FILE input.xml output.xml
- * for example: SignSOAP 5e1ec3ba-0ca2-4698-95c9-a36b33892590 secure ../cert.pfx input.xml output.xml
+ * for example: SignSOAP -a 5e1ec3ba-0ca2-4698-95c9-a36b33892590 -p secure -c ../cert.pfx -s input.xml -t output.xml
  */
 public class SignSOAP {
-	private static class CmdLineArgs {
-		@Parameter(names = {"-a"}, required = true, description = "Alias name of certificate. Try 'keytool -list -v -keystore cert.pfx -storetype pkcs12' to display.")
-		private String alias;
-		@Parameter(names = {"-p"}, required = true, description = "Password to access certificate.")
-		private String password;
-		@Parameter(names = {"-c"}, required = true, description = "Certificate (PFX format, pkcs12 type) file path.")
-		private String certFile;
-		@Parameter(names = {"-s"}, required = true, description = "Source XML file path.")
-		private String sourceFile;
-		@Parameter(names = {"-t"}, required = true, description = "Target (signed) XML file path.")
-		private String targetFile;
+	@Parameter(names = {"-a"}, required = true, description = "Alias name of certificate. Try 'keytool -list -v -keystore cert.pfx -storetype pkcs12' to display.")
+	private String alias;
+	@Parameter(names = {"-p"}, required = true, description = "Password to access certificate.")
+	private String password;
+	@Parameter(names = {"-c"}, required = true, description = "Certificate (PFX format, pkcs12 type) file path.")
+	private String certFile;
+	@Parameter(names = {"-s"}, required = true, description = "Source XML file path.")
+	private String sourceFile;
+	@Parameter(names = {"-t"}, required = true, description = "Target (signed) XML file path.")
+	private String targetFile;
+	
+	public SignSOAP(String[] args) {
+		parseArgs(args);
 	}
 	
-	private static CmdLineArgs cmdLineArgs;
-
 	public static void main(String[] args) throws Exception {
-		cmdLineArgs = processArgs(args);
-		Document doc = load(cmdLineArgs.sourceFile);
-		Document signedDoc = sign(doc);
-		write(signedDoc, cmdLineArgs.targetFile);
+		new SignSOAP(args).sign();
 	}
 
-	private static CmdLineArgs processArgs(String[] args) {
-		CmdLineArgs parsed = new CmdLineArgs();
-		JCommander commander = new JCommander(parsed);
+	private void sign() throws Exception {
+		Document doc = load(sourceFile);
+		Document signedDoc = sign(doc);
+		write(signedDoc, targetFile);
+	}
+
+	private void parseArgs(String[] args) {
+		JCommander commander = new JCommander(this);
 		try {
 			commander.parse(args);
 		} catch (ParameterException e) {
@@ -68,15 +69,14 @@ public class SignSOAP {
 			commander.usage();
 			System.exit(-1);
 		}
-		return parsed;
 	}
 
-	private static Document sign(Document doc) throws Exception {
+	private Document sign(Document doc) throws Exception {
 		WSSConfig.init();
 		Crypto crypto = CryptoFactory.getInstance(getProperties());
 
 		WSSecSignature builder = new WSSecSignature();
-		builder.setUserInfo(cmdLineArgs.alias, cmdLineArgs.password);
+		builder.setUserInfo(alias, password);
 		builder.setKeyIdentifierType(WSConstants.ISSUER_SERIAL);
 		builder.setSignatureAlgorithm("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256");
 		builder.setDigestAlgo("http://www.w3.org/2001/04/xmlenc#sha256");
@@ -87,13 +87,13 @@ public class SignSOAP {
 		return signedDoc;
 	}
 
-	private static Properties getProperties() {
+	private Properties getProperties() {
 		Properties props = new Properties();
 		props.setProperty("org.apache.wss4j.crypto.provider", "org.apache.wss4j.common.crypto.Merlin");
 		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.type", "pkcs12");
-		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.password", cmdLineArgs.password);
-		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.alias", cmdLineArgs.alias);
-		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.file", cmdLineArgs.certFile);
+		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.password", password);
+		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.alias", alias);
+		props.setProperty("org.apache.wss4j.crypto.merlin.keystore.file", certFile);
 		return props;
 	}
 
