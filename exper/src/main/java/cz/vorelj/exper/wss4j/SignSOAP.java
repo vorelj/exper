@@ -17,6 +17,7 @@ import org.apache.wss4j.dom.WSConstants;
 import org.apache.wss4j.dom.engine.WSSConfig;
 import org.apache.wss4j.dom.message.WSSecHeader;
 import org.apache.wss4j.dom.message.WSSecSignature;
+import org.apache.wss4j.dom.message.WSSecTimestamp;
 import org.w3c.dom.Document;
 
 import com.beust.jcommander.JCommander;
@@ -34,6 +35,7 @@ import com.beust.jcommander.ParameterException;
  * for example: SignSOAP -a 5e1ec3ba-0ca2-4698-95c9-a36b33892590 -p secure -c ../cert.pfx -s input.xml -t output.xml
  */
 public class SignSOAP {
+	private static final int FIVE_MINUTES_IN_SECONDS = 5 * 60;
 	@Parameter(names = {"-a"}, required = true, description = "Alias name of certificate. Try 'keytool -list -v -keystore cert.pfx -storetype pkcs12' to display.")
 	private String alias;
 	@Parameter(names = {"-p"}, required = true, description = "Password to access certificate.")
@@ -55,6 +57,7 @@ public class SignSOAP {
 
 	private void sign() throws Exception {
 		Document doc = load(sourceFile);
+		doc = addTimestamp(doc);
 		Document signedDoc = sign(doc);
 		write(signedDoc, targetFile);
 	}
@@ -85,6 +88,16 @@ public class SignSOAP {
 		secHeader.insertSecurityHeader();
 		Document signedDoc = builder.build(doc, crypto, secHeader);
 		return signedDoc;
+	}
+	
+	private Document addTimestamp(Document doc) throws Exception {
+		WSSecHeader secHeader = new WSSecHeader(doc);
+		secHeader.insertSecurityHeader();
+		
+		WSSecTimestamp timestamp = new WSSecTimestamp();
+		timestamp.setTimeToLive(FIVE_MINUTES_IN_SECONDS);
+		Document docWithTimestamp = timestamp.build(doc, secHeader);
+		return docWithTimestamp;
 	}
 
 	private Properties getProperties() {
